@@ -1,0 +1,5 @@
+node_modules/
+dist/
+*.zip
+# Third-party tool code under study must never be committed (clean-room rule).
+reference/
