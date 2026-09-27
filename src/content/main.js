@@ -7,7 +7,7 @@
   if (window.top !== window || root.__msaStarted) return;
   root.__msaStarted = true;
 
-  const { storage, profiles, autofill, validator, shippingWatch, shipping, pricing, scanner, panel } = root.MSA;
+  const { storage, profiles, autofill, validator, shippingWatch, shipping, pricing, scanner, panel, capture, toolbar } = root.MSA;
 
   const state = {
     profiles: [],
@@ -15,18 +15,64 @@
     settings: null,
     queue: { items: [], index: 0 },
     lastTransfer: null, // latest normalised transfer price seen on this page
+    lastCategoryId: null, // sub-sub-category id from the panel's own price request
     previousCharge: null,
   };
+
+  async function selectProfile(id) {
+    state.activeProfileId = id || null;
+    await storage.set('activeProfileId', state.activeProfileId);
+  }
+
+  function say(text, cls) {
+    ui.setMessage(text, cls);
+    bar.setMessage(text, cls);
+  }
+
+  /** Save the current form as a new profile, or into an existing one. */
+  async function saveFromForm(targetId) {
+    const captured = capture.captureForm(document, { selectorOverrides: state.settings.selectorOverrides });
+    if (!captured.count) {
+      say('Nothing to save yet. Fill the form first.', 'warn');
+      return null;
+    }
+    let profile;
+    if (targetId) {
+      const existing = state.profiles.find((p) => p.id === targetId);
+      if (!existing) return null;
+      if (!window.confirm(`Update "${existing.name}" with the ${captured.count} values in this form? Saved values not on this page, costs and packaging are kept.`)) return null;
+      profile = profiles.mergeCaptured(existing, captured);
+    } else {
+      const name = window.prompt('Name for this profile', capture.suggestName(captured));
+      if (name === null) return null;
+      profile = profiles.createProfile({
+        name: name.trim() || capture.suggestName(captured),
+        category: state.lastCategoryId || '',
+        fields: captured.fields,
+        attributes: captured.attributes,
+      });
+    }
+    if (!profile.category && state.lastCategoryId) profile.category = state.lastCategoryId;
+    await storage.upsertProfile(profile);
+    await selectProfile(profile.id);
+    say(`Saved ${captured.count} values to "${profile.name}".`, 'ok');
+    return profile;
+  }
 
   const ui = panel.mount({
     onFill: () => fillWith(state.activeProfileId),
     onCheck: runCheck,
-    onSelectProfile: async (id) => {
-      state.activeProfileId = id || null;
-      await storage.set('activeProfileId', state.activeProfileId);
-    },
+    onSelectProfile: selectProfile,
+    onSaveNew: () => saveFromForm(null),
     onQueueNext: fillNextInQueue,
     onOpenOptions: () => chrome.runtime.sendMessage({ type: 'MSA_OPEN_OPTIONS' }),
+  });
+
+  const bar = toolbar.mount({
+    onFill: (id) => fillWith(id || state.activeProfileId),
+    onSaveNew: () => saveFromForm(null),
+    onUpdate: (id) => saveFromForm(id),
+    onSelect: selectProfile,
   });
 
   function resolved(id) {
@@ -42,22 +88,25 @@
     ]);
     Object.assign(state, { profiles: list, activeProfileId: activeId, settings, queue });
     ui.setProfiles(list, activeId);
+    bar.setProfiles(list, activeId);
     ui.setQueue(queue, Object.fromEntries(list.map((p) => [p.id, p])));
   }
 
   async function fillWith(id) {
     const profile = resolved(id);
     if (!profile) {
-      ui.open();
-      ui.setMessage('Choose a profile first.', 'warn');
+      if (!bar.isAttached()) ui.open();
+      say('Choose a profile first.', 'warn');
       return null;
     }
-    ui.setMessage('Filling…');
+    say('Filling…');
     const report = await autofill.fill(document, profile, {
       overwrite: !!state.settings.overwriteFilled,
       selectorOverrides: state.settings.selectorOverrides,
     });
     ui.setFillReport(report);
+    const summary = `Filled ${report.filled.length}` + (report.failed.length ? `, ${report.failed.length} failed` : '') + '. Review, then submit.';
+    bar.setMessage(summary, report.failed.length ? 'warn' : 'ok');
     runCheck();
     return report;
   }
@@ -118,6 +167,7 @@
     const tp = msg.transferPrice;
     if (state.lastTransfer) state.previousCharge = state.lastTransfer.shippingCharge;
     state.lastTransfer = tp;
+    if (msg.request.subSubCategoryId) state.lastCategoryId = msg.request.subSubCategoryId;
     const profile = resolved(state.activeProfileId);
     const category = msg.request.subSubCategoryId || (profile && profile.category) || 'Uncategorised';
     ui.setShipping(await shippingView(tp, category));
@@ -138,6 +188,10 @@
     if (!msg || sender.id !== chrome.runtime.id) return false;
     if (msg.type === 'MSA_FILL') {
       fillWith(msg.profileId || state.activeProfileId).then((r) => sendResponse({ ok: !!r, report: r }));
+      return true;
+    }
+    if (msg.type === 'MSA_CAPTURE') {
+      saveFromForm(null).then((p) => sendResponse({ ok: !!p, name: p && p.name }));
       return true;
     }
     if (msg.type === 'MSA_STATUS') {

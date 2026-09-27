@@ -36,6 +36,10 @@
         <h3>Category attributes</h3>
         <p class="hint">One per line, as <code>Label = Value</code>, using the label shown in the panel (for example <code>Color = Black</code>).</p>
         <textarea name="attributes" rows="6"></textarea>
+        <div class="grid">
+          <label>Don't auto-fill (keys or labels, comma separated) <input name="skip" placeholder="inventory, Size" /></label>
+          <label>Keep when updating from the form <input name="locked" placeholder="meeshoPrice, mrp" /></label>
+        </div>
         <h3>Costs</h3>
         <div class="grid">
           <label>Cost price (₹) <input name="costPrice" type="number" step="0.01" min="0" /></label>

@@ -30,7 +30,9 @@
         "src/content/autofill.js",
         "src/content/validator.js",
         "src/content/shipping-watch.js",
+        "src/content/capture.js",
         "src/content/panel.js",
+        "src/content/toolbar.js",
         "src/content/main.js"
       ],
       "run_at": "document_idle"

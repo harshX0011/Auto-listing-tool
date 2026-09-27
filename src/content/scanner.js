@@ -41,16 +41,18 @@
       if (claimed.has(el) || !dom.isVisible(el) || el.disabled) continue;
       // Skip search inputs that belong to an open dropdown.
       if (el.closest('[role=listbox], [role=menu]')) continue;
+      // A combobox wrapper around a real input: the inner input is the control.
+      if (!/^(input|textarea|select)$/i.test(el.tagName) && el.querySelector('input:not([type=hidden]):not([aria-hidden=true]), textarea')) continue;
       const label = dom.getLabelText(el);
       const kind = dom.controlKind(el);
       const field =
         fields.matchIdentifier(el.getAttribute('name')) ||
-        fields.matchIdentifier(el.id) ||
+        fields.matchIdentifier(dom.stableId(el)) ||
         fields.matchLabel(label);
       const attr = fields.matchAttribute(label, attributeNames);
       let entry;
       // A profile attribute that matches the label exactly beats a weak generic match.
-      if (attr && (!field || attr.score > field.score)) {
+      if (attr && (!field || attr.score >= field.score)) {
         entry = { el, label, kind, key: null, attribute: attr.name, score: attr.score };
       } else if (field) {
         entry = { el, label, kind, key: field.key, attribute: null, score: field.score };
@@ -63,7 +65,9 @@
     // Keep the best-scoring control per key/attribute; the rest become unmatched.
     const byKey = {};
     const byAttribute = {};
+    const allByKey = {}; // every control per key, in page order (one per size row)
     for (const c of controls) {
+      if (c.key) (allByKey[c.key] = allByKey[c.key] || []).push(c);
       if (c.key) {
         if (!byKey[c.key] || c.score > byKey[c.key].score) byKey[c.key] = c;
       } else if (c.attribute) {
@@ -72,7 +76,7 @@
     }
     const winners = new Set([...Object.values(byKey), ...Object.values(byAttribute)]);
     const unmatched = controls.filter((c) => !winners.has(c));
-    return { controls, byKey, byAttribute, unmatched };
+    return { controls, byKey, byAttribute, allByKey, unmatched };
   }
 
   /** Read current form values keyed by canonical key and attribute name. */

@@ -14,16 +14,14 @@ contains the seller's own account data, which must never be committed.
   *Add single catalog* page, 2026-09-27.
 - It holds the panel's own JavaScript bundles, its API responses, analytics
   beacons, fonts and images, plus 31 `blob:` resources.
-- **It does not contain the existing extension's source code.** Extension
+- **It does not contain the existing extension's source code** (the package
+  was shared separately, see 3b). Extension
   content scripts are not page resources, so DevTools does not export them.
   The one script blob (`_blob/70158a62...js`) is the fflate compression library
   used by the page's analytics SDK, not the extension.
 - The evidence about the extension is therefore its **side effects**: the
   image blobs it created and the panel API calls they triggered.
 
-To study the extension's code directly, export it from
-`chrome://extensions` (Developer mode, "Pack extension", or copy its folder
-from the Chrome profile's `Extensions/` directory) into `reference/`.
 
 ## 2. How the panel prices a listing (panel behaviour)
 
@@ -102,12 +100,63 @@ Image with text.*
   The exporter keeps one response per URL, so the individual iterations are
   not visible, only the final state.
 
+## 3b. Code review of the extension package (RapidSKU 2.2.1)
+
+The seller later shared the installed extension folder. It was read in the
+scratchpad only, never added to this repo. Behaviour, in our words:
+
+**Structure.** One content script injects an inline bar next to the form's
+"Add Product Details" heading (profile picker, Auto Fill, detect). The
+background worker runs the detect and fill functions in the page with
+`chrome.scripting`. A MAIN-world script runs the shipping optimiser. A
+sign-in, trial and paid-credit system (Supabase, Cashfree, a Cloudflare
+worker) gates Auto Fill and the optimiser. Product profiles live in
+`chrome.storage.local`; account calls do not include profile contents.
+
+**Detect (form to profile).** Every visible input, textarea and select is
+recorded with a label, a type, the current value and a locator. Labels come
+from `label[for]`, `aria-label`, `<id>-label`, a nearby `<p>`, or `<h6>`
+column headers for the price grid. Locators prefer the stable id behind
+`aria-describedby="<id>-helper-text"`, then a non-`mui-` id, then `name`,
+then a short CSS path. Price-grid inputs are keyed by size row and column.
+Re-detecting merges into the profile: fields marked **locked** keep their
+saved value, and fields marked **skip** are never filled.
+
+**Fill (profile to form).** Text is set through the native value setter plus
+`input`/`change` events. Dropdown triggers are `input[placeholder="Select"]`
+inside `[role=combobox]`. Clicking one opens a `[role=menu]` with an
+`input[placeholder="Search"]` and `[role=menuitem]` rows (text in a `<p>`).
+Sizes are a multi-select. Disabled and read-only fields are force-unlocked
+before filling.
+
+**Shipping optimiser (confirms section 3).** For each variant it adds a random
+20 to 80 px border (solid or gradient), 2 or 3 corner badges from bundled
+PNGs, pixel noise plus a unique "signature" pixel, and a random JPEG quality.
+It then calls the panel's upload, duplicate-match and transfer-price
+endpoints **directly**, using the supplier id read from cookies, and keeps
+the variant with the lowest shipping charge.
+
+**DOM facts we reuse (interoperability only, re-implemented independently):**
+the dropdown trigger and menu shape, the `-helper-text` stable ids, and
+`<h6>` grid headers.
+
+**Where we deliberately differ:**
+
+| RapidSKU | Ours |
+| --- | --- |
+| Force-enables disabled/read-only fields | Leaves them alone: the panel disables fields on purpose (for example packer = manufacturer) |
+| Calls panel APIs directly, reads the supplier id from cookies | Never calls panel APIs; only reads responses the page already received |
+| Image variants to lower the shipping estimate | Not built (section 4) |
+| Account, trial and credits gate every fill | No account, no network access outside the panel |
+| Profiles store CSS paths per field | Profiles store field keys and visible labels, so one profile works across products in the same category even when element ids change |
+
 ## 4. Decisions for our implementation
 
 | Existing tool behaviour | Our implementation | Why |
 | --- | --- | --- |
 | Reads shipping and settlement shown by the panel | **Rebuilt**: `page-observer.js` passively reads the panel's own transfer-price responses; nothing extra is sent | Useful and harmless |
-| Autofills listing fields | **Rebuilt** independently: label and identifier matching, React-safe input setting, custom dropdowns | Useful and harmless |
+| Saves the filled form as a profile | **Rebuilt**: "Save as profile" / "Update" in an inline toolbar; Update merges and respects locked keys | Useful and harmless |
+| Autofills listing fields | **Rebuilt** independently: label and identifier matching, React-safe input setting, dropdowns with search, size multi-select, every size row, skip list | Useful and harmless |
 | Reusable product data | **Rebuilt**: profiles with inheritance, templates, validation, import/export, queue | Useful and harmless |
 | Generates image variants (borders, noise, stickers) and keeps the one with the cheapest shipping estimate | **Not rebuilt** | Its purpose is to make the panel's visual match and shipping estimate misfire. The added stickers and text fall under the panel's own invalid-image list. Real parcels are weighed and measured by the courier, so a mismatch can lead to weight-discrepancy charges, listing blocks or account action. |
 

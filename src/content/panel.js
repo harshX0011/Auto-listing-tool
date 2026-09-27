@@ -79,6 +79,7 @@
           h('button', { class: 'act primary', onclick: handlers.onFill }, 'Fill form'),
           h('button', { class: 'act', onclick: handlers.onCheck }, 'Check'),
         ),
+        h('div', { class: 'row' }, h('button', { class: 'act', onclick: handlers.onSaveNew }, 'Save this form as a profile')),
         fillStatus,
       ),
       h(

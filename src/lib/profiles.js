@@ -30,6 +30,8 @@
       attributes: Object.assign({}, p.attributes),
       costs: Object.assign({ costPrice: null, packagingCost: null, targetProfit: null }, p.costs),
       packaging: Object.assign({ weightGrams: null, dims: null }, p.packaging),
+      locked: Array.isArray(p.locked) ? p.locked.slice() : [], // keys "Update from form" must not change
+      skip: Array.isArray(p.skip) ? p.skip.slice() : [], // keys Auto Fill must leave alone
       updatedAt: p.updatedAt || new Date().toISOString(),
     };
   }
@@ -55,6 +57,9 @@
       Object.assign(merged.costs, stripEmpty(p.costs));
       Object.assign(merged.packaging, stripEmpty(p.packaging));
     }
+    const child = chain[chain.length - 1];
+    merged.locked = (child.locked || []).slice();
+    merged.skip = Array.from(new Set(chain.flatMap((p) => p.skip || [])));
     return merged;
   }
 
@@ -81,8 +86,9 @@
   /** Values ready to type into the form, with templates rendered. */
   function renderValues(profile, extra) {
     const out = { fields: {}, attributes: {} };
-    for (const [k, v] of Object.entries(profile.fields)) out.fields[k] = renderTemplate(v, profile, extra);
-    for (const [k, v] of Object.entries(profile.attributes)) out.attributes[k] = renderTemplate(v, profile, extra);
+    const skip = new Set(profile.skip || []);
+    for (const [k, v] of Object.entries(profile.fields)) if (!skip.has(k)) out.fields[k] = renderTemplate(v, profile, extra);
+    for (const [k, v] of Object.entries(profile.attributes)) if (!skip.has(k)) out.attributes[k] = renderTemplate(v, profile, extra);
     return out;
   }
 
@@ -117,6 +123,26 @@
     return { errors, warnings };
   }
 
+  /**
+   * Merge values read from the form into an existing profile. Page values win,
+   * except for keys listed in profile.locked, which keep their saved value.
+   * Keys not present on the page are kept.
+   */
+  function mergeCaptured(profile, captured) {
+    const locked = new Set(profile.locked || []);
+    const keep = (saved, fresh) => {
+      const out = Object.assign({}, saved);
+      for (const [k, v] of Object.entries(fresh || {})) if (!locked.has(k) || !(k in out)) out[k] = v;
+      return out;
+    };
+    return createProfile(
+      Object.assign({}, profile, {
+        fields: keep(profile.fields, captured.fields),
+        attributes: keep(profile.attributes, captured.attributes),
+      }),
+    );
+  }
+
   function exportProfiles(profiles) {
     return JSON.stringify({ format: 'seller-listing-assistant/profiles', version: EXPORT_VERSION, profiles }, null, 2);
   }
@@ -137,6 +163,7 @@
     resolveProfile,
     renderTemplate,
     renderValues,
+    mergeCaptured,
     validateProfile,
     exportProfiles,
     importProfiles,

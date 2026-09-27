@@ -7,12 +7,18 @@ inside the Supplier Panel and helps with:
   calculates (shipping, customer price, TCS/TDS, settlement) and adds your
   profit after costs. Every charge is saved to a local log, so you can see the
   real shipping rates per category and weight slab.
-- **Listing autofill.** It fills the add-catalog form from a saved profile,
-  including custom dropdowns, and never overwrites values you already typed
+- **Save a form as a profile.** Fill one product by hand, then click
+  **Save as profile** in the toolbar next to "Add Product Details". Every
+  field is saved, including category attributes like Color, Play Time and
+  Size. **Update** merges a later form into the selected profile.
+- **Listing autofill.** Pick a profile and click **Auto Fill**. It fills text
+  fields, dropdowns (using their search box), multi-select sizes and every
+  size row of the price table. It never overwrites values you already typed
   unless you ask it to. You still review and submit every listing yourself.
 - **Reusable product profiles.** A base profile holds details shared by all
   your products (manufacturer, packer, GST, country). Product profiles inherit
-  from it. Templates like `Wireless Earbuds {{Color}}` are supported.
+  from it. Templates like `Wireless Earbuds {{Color}}` are supported. Per
+  profile you can mark fields to skip during Auto Fill or keep during Update.
 - **Workflow.** A queue for listing many products one after another, a
   pre-submit checklist (required fields, price vs MRP, loss-making prices,
   return-discount limit), a keyboard shortcut (Alt+Shift+F) and profile
@@ -35,7 +41,9 @@ page-observer.js (MAIN world)   reads the panel's own transfer-price responses
         ▼
 main.js (isolated content script)
   ├─ scanner.js     finds form controls by label / identifier
+  ├─ capture.js     reads the filled form into profile data
   ├─ autofill.js    types profile values (React-safe), picks dropdown options
+  ├─ toolbar.js     inline bar next to "Add Product Details"
   ├─ validator.js   pre-submit checklist
   ├─ panel.js       floating panel (closed shadow DOM)
   └─ lib/           pricing, shipping, profiles, storage (shared with options page)

@@ -73,6 +73,8 @@
     );
     for (const def of fields.FIELD_DEFS) el['f_' + def.key].value = p.fields[def.key] == null ? '' : p.fields[def.key];
     el.attributes.value = Object.entries(p.attributes).map(([k, v]) => `${k} = ${v}`).join('\n');
+    el.skip.value = (p.skip || []).join(', ');
+    el.locked.value = (p.locked || []).join(', ');
     el.costPrice.value = p.costs.costPrice ?? '';
     el.packagingCost.value = p.costs.packagingCost ?? '';
     el.targetProfit.value = p.costs.targetProfit ?? '';
@@ -104,6 +106,9 @@
         if (k && v) p.attributes[k] = v;
       }
     }
+    const keys = (v) => v.split(',').map((x) => x.trim()).filter(Boolean);
+    p.skip = keys(el.skip.value);
+    p.locked = keys(el.locked.value);
     p.costs = { costPrice: numOrNull(el.costPrice.value), packagingCost: numOrNull(el.packagingCost.value), targetProfit: numOrNull(el.targetProfit.value) };
     const dims = [el.packL.value, el.packB.value, el.packH.value].every((v) => v !== '')
       ? { length: Number(el.packL.value), breadth: Number(el.packB.value), height: Number(el.packH.value) }

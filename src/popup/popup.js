@@ -16,6 +16,7 @@
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   const onPanel = tab && PANEL_URL.test(tab.url || '');
   $('fill').disabled = !onPanel;
+  $('capture').disabled = !onPanel;
   if (!onPanel) return;
 
   const setStatus = (text, cls) => {
@@ -32,6 +33,17 @@
     },
     () => setStatus('Reload the supplier panel tab once after installing.', 'warn'),
   );
+
+  $('capture').addEventListener('click', async () => {
+    // The name prompt appears on the page, so close the popup's focus first.
+    setStatus('Check the supplier panel tab to name the profile.');
+    try {
+      const res = await chrome.tabs.sendMessage(tab.id, { type: 'MSA_CAPTURE' });
+      if (res && res.ok) setStatus(`Saved "${res.name}".`, 'ok');
+    } catch (e) {
+      setStatus('Reload the supplier panel tab once after installing.', 'warn');
+    }
+  });
 
   $('fill').addEventListener('click', async () => {
     if (!select.value) return setStatus('Choose a profile first.', 'warn');

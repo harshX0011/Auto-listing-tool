@@ -12,6 +12,9 @@
   const scanner = isNode ? require('./scanner') : root.MSA.scanner;
   const profiles = isNode ? require('../lib/profiles') : root.MSA.profiles;
 
+  // Columns of the size-wise price table: one input per size row.
+  const PER_SIZE_KEYS = new Set(['meeshoPrice', 'wdrpDiscount', 'mrp', 'inventory', 'skuId']);
+
   async function fillControl(control, value) {
     const { el, kind } = control;
     if (kind === 'file') return { ok: false, reason: 'file inputs are left to the seller' };
@@ -45,8 +48,8 @@
     const jobs = [];
     for (const [key, value] of Object.entries(values.fields)) {
       if (value === '' || value == null) continue;
-      const c = result.byKey[key];
-      if (c) jobs.push({ name: key, control: c, value });
+      const all = PER_SIZE_KEYS.has(key) ? result.allByKey[key] || [] : [result.byKey[key]].filter(Boolean);
+      if (all.length) all.forEach((c) => jobs.push({ name: key, control: c, value }));
       else report.notFound.push(key);
     }
     for (const [name, value] of Object.entries(values.attributes)) {
