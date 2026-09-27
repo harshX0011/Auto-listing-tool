@@ -24,6 +24,7 @@
       document.querySelectorAll('.tab').forEach((t) => (t.hidden = t.id !== 'tab-' + btn.dataset.tab));
       if (btn.dataset.tab === 'shipping') renderShipping();
       if (btn.dataset.tab === 'queue') renderQueue();
+      if (btn.dataset.tab === 'calc') initCalc();
     }),
   );
 
@@ -200,6 +201,101 @@
     $('#profile-validation').append(h('div', { className: 'ok' }, `Added to queue (${q.items.length} items).`));
   });
 
+
+  // ---------- shipping calculator ----------
+  const cform = $('#calc-form');
+  let calcReady = false;
+  async function initCalc() {
+    const [log, categoryInfo] = await Promise.all([storage.get('shippingLog'), storage.get('categoryInfo')]);
+    const ids = new Set([...Object.keys(categoryInfo), ...log.map((o) => o.category).filter((c) => c && c !== 'Uncategorised')]);
+    $('#known-categories').replaceChildren(...[...ids].map((id) => h('option', { value: id }, categoryInfo[id] && categoryInfo[id].baseShipping != null ? `base ₹${categoryInfo[id].baseShipping}` : '')));
+    cform.elements.profile.replaceChildren(h('option', { value: '' }, 'None'), ...list.map((p) => h('option', { value: p.id }, p.name)));
+    if (!calcReady) {
+      calcReady = true;
+      cform.addEventListener('input', (e) => {
+        if (e.target.name === 'profile') return;
+        renderCalc();
+      });
+      cform.elements.profile.addEventListener('change', () => {
+        const p = profiles.resolveProfile(cform.elements.profile.value, list);
+        if (!p) return;
+        const el = cform.elements;
+        const set = (name, v) => { if (v != null && v !== '') el[name].value = v; };
+        set('category', p.category);
+        set('weight', p.fields.weight);
+        set('price', p.fields.meeshoPrice);
+        set('mrp', p.fields.mrp);
+        set('gst', p.fields.gst);
+        set('costPrice', p.costs.costPrice);
+        set('packagingCost', p.costs.packagingCost);
+        set('targetProfit', p.costs.targetProfit);
+        set('packWeight', p.packaging.weightGrams);
+        const d = p.packaging.dims || {};
+        set('packL', d.length); set('packB', d.breadth); set('packH', d.height);
+        renderCalc();
+      });
+    }
+    renderCalc();
+  }
+
+  async function renderCalc() {
+    const el = cform.elements;
+    const n = (name) => (el[name].value === '' ? null : Number(el[name].value));
+    const [log, categoryInfo] = await Promise.all([storage.get('shippingLog'), storage.get('categoryInfo')]);
+    const box = $('#calc-result');
+    const est = n('shipOverride') != null
+      ? { amount: n('shipOverride'), source: 'override', low: n('shipOverride'), high: n('shipOverride'), samples: 0 }
+      : shipping.estimateForListing({ categoryId: el.category.value.trim() || null, declaredGrams: n('weight') }, { log, categoryInfo, config: settings.shipping });
+    const rows = [];
+    const sourceText = est.source === 'override' ? 'your override' : shipping.SOURCE_LABELS[est.source];
+    if (!n('price')) {
+      box.replaceChildren(h('p', { className: 'hint' }, 'Enter at least a Meesho price. Add the category id to use the shipping you have seen for it.'));
+      $('#calc-ladder').replaceChildren();
+      return;
+    }
+    const input = {
+      price: n('price'), mrp: n('mrp'), productGstPct: n('gst') || 0,
+      shippingCharge: est.amount || 0, costPrice: n('costPrice'), packagingCost: n('packagingCost'),
+      returnRatePct: n('returnRate'), returnCostPerOrder: n('returnCost'), targetProfit: n('targetProfit'),
+    };
+    const q = pricing.quote(input, settings.fees);
+    const money = (v) => (v == null ? '–' : `₹${v}`);
+    const kv = (k, v, cls) => [h('span', { className: cls || '' }, k), h('span', { className: cls || '' }, v)];
+    box.replaceChildren(
+      h('div', null, 'Estimated shipping'),
+      h('div', { className: 'big' }, est.amount == null ? 'Not known yet' : money(est.amount) + (est.low !== est.high ? `  (₹${est.low} to ₹${est.high})` : '')),
+      h('p', { className: 'hint' }, `Source: ${sourceText}${est.samples ? `, ${est.samples} logged` : ''}. Meesho finalises shipping from the product image match and packaging; list once to see the exact figure.`),
+      h(
+        'div',
+        { className: 'kv' },
+        kv('Meesho price', money(q.price)),
+        kv('Shipping (paid by customer)', money(est.amount)),
+        kv('Customer pays', money(q.customerPays), 'total'),
+        kv('Commission', money(q.commission)),
+        kv('Tax deducted (GST on fees, TCS, TDS)', money(q.taxesShown)),
+        kv('Bank settlement', money(q.settlement), 'total'),
+        kv('GST you owe on the sale', money(q.netGstPayable)),
+        kv('Cost + packaging', money((input.costPrice || 0) + (input.packagingCost || 0))),
+        kv('Profit per order', `${money(q.profit)} (${q.marginPct}%)`, 'total'),
+        input.returnRatePct ? kv('Expected profit with returns', money(q.expectedProfit)) : null,
+        q.priceForTarget ? kv(`Price for ₹${input.targetProfit} profit`, money(q.priceForTarget)) : null,
+      ),
+      ...q.warnings.map((w) => h('div', { className: 'warn' }, w)),
+    );
+    if (n('weight')) {
+      const packed = shipping.chargeableGrams(n('weight') + (n('packWeight') || 0), [n('packL'), n('packB'), n('packH')].every((v) => v) ? { length: n('packL'), breadth: n('packB'), height: n('packH') } : null, settings.shipping);
+      const adv = shipping.advise(packed, el.category.value.trim() || 'Uncategorised', shipping.rateTable(log, settings.shipping), settings.shipping);
+      box.append(h('p', { className: 'hint' }, `Packed chargeable weight ${packed} g (courier slab ${adv.position.index}, ${adv.position.headroomGrams} g headroom).`), ...adv.tips.map((t) => h('div', { className: 'warn' }, t.message)));
+    }
+    const ladder = pricing.priceLadder(input, settings.fees, { steps: 5, step: input.price >= 500 ? 50 : 20 });
+    $('#calc-ladder').replaceChildren(
+      h('div', { className: 'table-wrap' }, h('table', null,
+        h('tr', null, ...['Meesho price', 'Customer pays', 'Settlement', 'Profit', 'Margin'].map((t) => h('th', null, t))),
+        ...ladder.map((r) => h('tr', { className: r.current ? 'current' : '' }, h('td', null, money(r.price)), h('td', null, money(r.customerPays)), h('td', null, money(r.settlement)), h('td', null, money(r.profit)), h('td', null, r.marginPct + '%'))),
+      )),
+    );
+  }
+
   // ---------- queue ----------
   async function renderQueue() {
     const q = await storage.get('queue');
@@ -283,6 +379,7 @@
     for (const k of ['commissionPct', 'fixedFeePerOrder', 'gstOnFeesPct', 'tcsPct', 'tdsPct']) el[k].value = f[k];
     el.taxBaseIncludesShipping.checked = !!f.taxBaseIncludesShipping;
     el.shippingBorneBySeller.checked = !!f.shippingBorneBySeller;
+    el.gstEnrolmentOnly.checked = !!f.gstEnrolmentOnly;
     el.slabSizeGrams.value = s.slabSizeGrams;
     el.volumetricDivisor.value = s.volumetricDivisor;
     el.firstSlab.value = rm.firstSlab;
@@ -322,6 +419,7 @@
         tdsPct: Number(el.tdsPct.value) || 0,
         taxBaseIncludesShipping: el.taxBaseIncludesShipping.checked,
         shippingBorneBySeller: el.shippingBorneBySeller.checked,
+        gstEnrolmentOnly: el.gstEnrolmentOnly.checked,
       },
       shipping: {
         slabSizeGrams: Number(el.slabSizeGrams.value) || shipping.DEFAULT_CONFIG.slabSizeGrams,

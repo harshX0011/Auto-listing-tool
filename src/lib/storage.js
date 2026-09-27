@@ -10,6 +10,7 @@
     activeProfileId: null,
     queue: { items: [], index: 0 },
     shippingLog: [],
+    categoryInfo: {}, // { [subSubCategoryId]: { baseShipping, wdrpMaxPct, seenAt } }
     settings: {
       fees: null, // null = pricing.DEFAULT_FEES
       shipping: null, // null = shipping.DEFAULT_CONFIG
@@ -95,11 +96,18 @@
     return true;
   }
 
+  async function rememberCategory(id, info) {
+    if (!id) return;
+    const all = await get('categoryInfo');
+    all[id] = Object.assign({}, all[id], info, { seenAt: new Date().toISOString() });
+    await set('categoryInfo', all);
+  }
+
   function _resetMemory() {
     fallback = null;
   }
 
-  const api = { DEFAULTS, get, set, upsertProfile, deleteProfile, appendShippingObservation, _resetMemory };
+  const api = { DEFAULTS, get, set, upsertProfile, deleteProfile, appendShippingObservation, rememberCategory, _resetMemory };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else (root.MSA = root.MSA || {}).storage = api;
 })(globalThis);

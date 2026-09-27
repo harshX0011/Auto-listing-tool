@@ -7,6 +7,13 @@ inside the Supplier Panel and helps with:
   calculates (shipping, customer price, TCS/TDS, settlement) and adds your
   profit after costs. Every charge is saved to a local log, so you can see the
   real shipping rates per category and weight slab.
+- **Shipping calculator.** Before you list, estimate shipping, what the
+  customer pays, bank settlement (GST on fees, TCS, TDS) and profit, with a
+  price what-if table and the price needed for a target profit. Shipping comes
+  from the strongest evidence available: the panel's own figure on this page,
+  your logged panel charges for the category and weight, the category's base
+  shipping from the panel's form, then your fallback rates. It warns when
+  price + shipping is above MRP, as the panel does.
 - **Save a form as a profile.** Fill one product by hand, then click
   **Save as profile** in the toolbar next to "Add Product Details". Every
   field is saved, including category attributes like Color, Play Time and

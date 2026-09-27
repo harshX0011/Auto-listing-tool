@@ -12,7 +12,24 @@
   window.__msaObserverInstalled = true;
 
   const SOURCE = 'msa-page-observer';
-  const WATCHED = [{ kind: 'transferPrice', test: /\/api\/cataloging\/singleCatalogUpload\/getTransferPrice(?:[?#]|$)/ }];
+  const WATCHED = [
+    { kind: 'transferPrice', test: /\/api\/cataloging\/singleCatalogUpload\/getTransferPrice(?:[?#]|$)/ },
+    { kind: 'productSchema', test: /\/api\/cataloging\/singleCatalogUploadDesktop\/fetchProductDetailsV3(?:[?#]|$)/ },
+  ];
+
+  // The form schema is large; forward only the category-level numbers we use.
+  function summarise(kind, response, url) {
+    if (kind !== 'productSchema') return response;
+    const q = {};
+    try {
+      new URL(String(url), window.location.href).searchParams.forEach((v, k) => (q[k] = v));
+    } catch (e) {}
+    return {
+      shipping_price: response.shipping_price,
+      wdrp_discount_max_percentage: response.wdrp_discount_max_percentage,
+      query: q,
+    };
+  }
 
   function kindFor(url) {
     const hit = WATCHED.find((w) => w.test.test(String(url)));
@@ -29,10 +46,10 @@
     }
   }
 
-  function emit(kind, requestBody, responseBody) {
+  function emit(kind, requestBody, responseBody, url) {
     const response = parse(responseBody);
-    if (!response) return;
-    window.postMessage({ source: SOURCE, kind, request: parse(requestBody), response }, window.location.origin);
+    if (!response || typeof response !== 'object') return;
+    window.postMessage({ source: SOURCE, kind, request: parse(requestBody), response: summarise(kind, response, url) }, window.location.origin);
   }
 
   // XMLHttpRequest (the panel uses axios, which uses XHR in browsers).
@@ -42,6 +59,7 @@
     const send = XHR.send;
     XHR.open = function (method, url) {
       this.__msaKind = kindFor(url);
+      this.__msaUrl = url;
       return open.apply(this, arguments);
     };
     XHR.send = function (body) {
@@ -50,7 +68,7 @@
         this.addEventListener('load', () => {
           if (this.status >= 200 && this.status < 300) {
             const res = this.responseType === '' || this.responseType === 'text' ? this.responseText : this.response;
-            emit(kind, body, res);
+            emit(kind, body, res, this.__msaUrl);
           }
         });
       }
@@ -71,7 +89,7 @@
           res
             .clone()
             .text()
-            .then((text) => emit(kind, init && init.body, text))
+            .then((text) => emit(kind, init && init.body, text, url))
             .catch(() => {});
         }).catch(() => {});
       }

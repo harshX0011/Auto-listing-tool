@@ -140,6 +140,7 @@
         if (view.profit != null) rows.push(['Profit after costs', view.profit]);
         set(shipBox,
           h('table', null, rows.map(([k, v]) => h('tr', null, h('td', null, k), h('td', null, v == null ? '–' : `₹${v}`)))),
+          view.note ? h('div', { class: 'muted' }, view.note) : null,
           list(view.tips || [], 'warn'),
           view.previous != null && view.previous !== view.shippingCharge
             ? h('div', { class: 'muted' }, `Previous calculation on this page: ₹${view.previous}`)

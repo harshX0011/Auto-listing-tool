@@ -67,6 +67,17 @@ This matches:
 
 `src/lib/pricing.js` implements this and `test/pricing.test.js` asserts it.
 
+### Category base shipping and MRP guardrail
+
+- The form schema response carries a category-level `shipping_price`
+  (90 in the capture, versus 95 finally charged for the matched product).
+  The panel uses it in its price guardrails. We record it per category and
+  use it as the fallback estimate before the panel calculates.
+- The panel flags `price + shipping > MRP` (customers would see more than
+  MRP). Our calculator, panel and checklist raise the same warning.
+- For sellers on a GST enrolment id the panel shows no TCS line; the
+  calculator has a matching setting.
+
 ### Form labels (used for field matching)
 
 `Product Name`, `Meesho Price`, `Wrong / Defective Return Discount(₹)`, `MRP`,

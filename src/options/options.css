@@ -35,3 +35,8 @@ th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line
 .file { flex-direction: row; align-items: center; gap: 8px; color: var(--ink); }
 .file input { width: auto; }
 code { background: #eee; padding: 0 4px; border-radius: 4px; }
+
+.big { font-size: 22px; font-weight: 700; color: var(--brand); }
+.kv { display: grid; grid-template-columns: 1fr auto; gap: 2px 16px; max-width: 420px; font-variant-numeric: tabular-nums; }
+.kv .total { font-weight: 700; border-top: 1px solid var(--line); padding-top: 4px; }
+tr.current td { font-weight: 700; background: #f3edf8; }

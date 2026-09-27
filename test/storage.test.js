@@ -36,3 +36,14 @@ test('shipping observations are de-duplicated and capped', async () => {
   assert.equal(log.length, 3);
   assert.equal(log[2].price, 304);
 });
+
+test('rememberCategory merges category info', async () => {
+  storage._resetMemory();
+  await storage.rememberCategory('1234', { baseShipping: 90 });
+  await storage.rememberCategory('1234', { wdrpMaxPct: 30 });
+  await storage.rememberCategory(null, { baseShipping: 1 });
+  const info = await storage.get('categoryInfo');
+  assert.deepEqual(Object.keys(info), ['1234']);
+  assert.equal(info['1234'].baseShipping, 90);
+  assert.equal(info['1234'].wdrpMaxPct, 30);
+});

@@ -161,21 +161,78 @@
     return view;
   }
 
+  function formNumbers() {
+    const v = scanner.readValues(scanner.scan(document, { selectorOverrides: state.settings.selectorOverrides })).fields;
+    const n = (x) => {
+      const r = pricing.parseAmount(x, NaN);
+      return Number.isFinite(r) ? r : null;
+    };
+    return { price: n(v.meeshoPrice), mrp: n(v.mrp), gst: n(v.gst), weight: n(v.weight) };
+  }
+
+  /** Our own estimate, shown until (and alongside) the panel's calculation. */
+  async function estimateView(categoryId) {
+    const f = formNumbers();
+    const [log, categoryInfo] = await Promise.all([storage.get('shippingLog'), storage.get('categoryInfo')]);
+    const est = shipping.estimateForListing(
+      { categoryId, declaredGrams: f.weight },
+      { log, categoryInfo, config: state.settings.shipping },
+    );
+    if (est.amount == null || !f.price) return null;
+    const profile = resolved(state.activeProfileId);
+    const q = pricing.quote(
+      {
+        price: f.price,
+        mrp: f.mrp,
+        productGstPct: f.gst != null ? f.gst : profile && profile.fields.gst,
+        shippingCharge: est.amount,
+        costPrice: profile && profile.costs.costPrice,
+        packagingCost: profile && profile.costs.packagingCost,
+      },
+      state.settings.fees,
+    );
+    const range = est.low !== est.high ? ` (₹${est.low} to ₹${est.high})` : '';
+    return {
+      price: q.price,
+      shippingCharge: est.amount,
+      customerPays: q.customerPays,
+      settlement: q.settlement,
+      profit: profile && profile.costs.costPrice != null ? q.profit : null,
+      note: `Estimate${range}: ${shipping.SOURCE_LABELS[est.source]}. The panel's own figure replaces this when it calculates.`,
+      tips: q.warnings,
+    };
+  }
+
   window.addEventListener('message', async (event) => {
     const msg = shippingWatch.readObserverMessage(event, window);
     if (!msg) return;
+    if (msg.kind === 'productSchema') {
+      if (msg.categoryId) state.lastCategoryId = msg.categoryId;
+      await storage.rememberCategory(msg.categoryId || state.lastCategoryId, { baseShipping: msg.baseShipping, wdrpMaxPct: msg.wdrpMaxPct });
+      if (!state.lastTransfer) {
+        const view = await estimateView(state.lastCategoryId);
+        if (view) ui.setShipping(view);
+      }
+      return;
+    }
     const tp = msg.transferPrice;
     if (state.lastTransfer) state.previousCharge = state.lastTransfer.shippingCharge;
     state.lastTransfer = tp;
     if (msg.request.subSubCategoryId) state.lastCategoryId = msg.request.subSubCategoryId;
     const profile = resolved(state.activeProfileId);
-    const category = msg.request.subSubCategoryId || (profile && profile.category) || 'Uncategorised';
-    ui.setShipping(await shippingView(tp, category));
+    const category = msg.request.subSubCategoryId || state.lastCategoryId || (profile && profile.category) || 'Uncategorised';
+    const view = await shippingView(tp, category);
+    const mrp = formNumbers().mrp;
+    view.tips = pricing.quote({ price: tp.price, mrp, shippingCharge: tp.shippingCharge }, state.settings.fees).warnings
+      .filter((w) => !/^Loss/.test(w))
+      .concat(view.tips || []);
+    view.note = "Panel's own calculation.";
+    ui.setShipping(view);
     if (state.settings.autoLogShipping) {
-      const weight = pricing.parseAmount(scanner.readValues(scanner.scan(document)).fields.weight, NaN);
+      const weight = formNumbers().weight;
       await storage.appendShippingObservation({
         category,
-        weightGrams: Number.isFinite(weight) ? weight : null,
+        weightGrams: weight,
         price: tp.price,
         charge: tp.shippingCharge,
         settlement: tp.settlement,
@@ -192,6 +249,10 @@
     }
     if (msg.type === 'MSA_CAPTURE') {
       saveFromForm(null).then((p) => sendResponse({ ok: !!p, name: p && p.name }));
+      return true;
+    }
+    if (msg.type === 'MSA_ESTIMATE') {
+      estimateView(state.lastCategoryId).then((v) => sendResponse({ ok: !!v, view: v }));
       return true;
     }
     if (msg.type === 'MSA_STATUS') {

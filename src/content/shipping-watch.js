@@ -17,17 +17,39 @@
   function readObserverMessage(event, expectedWindow) {
     if (!event || event.source !== expectedWindow) return null;
     const d = event.data;
-    if (!d || d.source !== OBSERVER_SOURCE || d.kind !== 'transferPrice') return null;
+    if (!d || d.source !== OBSERVER_SOURCE) return null;
+    if (d.kind === 'productSchema') return readSchema(d);
+    if (d.kind !== 'transferPrice') return null;
     const tp = pricing.fromPanelTransferPrice(d.response);
     if (!tp || !Number.isFinite(tp.shippingCharge)) return null;
     const req = d.request && typeof d.request === 'object' ? d.request : {};
     return {
+      kind: 'transferPrice',
       transferPrice: tp,
       request: {
         price: pricing.parseAmount(req.price, tp.price),
         gstPct: req.gst_percentage == null ? null : pricing.parseAmount(req.gst_percentage, null),
         subSubCategoryId: req.sscat_id == null ? null : String(req.sscat_id),
       },
+    };
+  }
+
+  function categoryIdFrom(obj) {
+    if (!obj || typeof obj !== 'object') return null;
+    for (const k of ['sscat_id', 'sub_sub_category_id', 'sscatId', 'subSubCategoryId']) {
+      if (obj[k] != null && obj[k] !== '') return String(obj[k]);
+    }
+    return null;
+  }
+
+  function readSchema(d) {
+    const r = d.response || {};
+    const base = pricing.parseAmount(r.shipping_price, NaN);
+    return {
+      kind: 'productSchema',
+      categoryId: categoryIdFrom(d.request) || categoryIdFrom(r.query),
+      baseShipping: Number.isFinite(base) ? base : null,
+      wdrpMaxPct: r.wdrp_discount_max_percentage == null ? null : pricing.parseAmount(r.wdrp_discount_max_percentage, null),
     };
   }
 

@@ -163,8 +163,57 @@
     return { position: pos, estimate: current, tips };
   }
 
+  /**
+   * Best available shipping estimate for a listing, from the strongest
+   * evidence we have:
+   *   1. live      the panel's own calculation for this category on this page
+   *   2. observed  median of logged panel charges, same category and slab
+   *   3. category  logged charges for the category at any weight (range)
+   *   4. base      the category's base shipping from the panel's form schema
+   *   5. model     the seller's fallback rate model
+   * @param {{categoryId?:string, declaredGrams?:number}} listing
+   * @param {{live?:{charge:number,categoryId?:string}, log?:Array, categoryInfo?:object, config?:object}} sources
+   * @returns {{amount:number|null, source:string, low:number|null, high:number|null, samples:number}}
+   */
+  function estimateForListing(listing, sources) {
+    const src = sources || {};
+    const cat = listing.categoryId ? String(listing.categoryId) : 'Uncategorised';
+    const res = (amount, source, low, high, samples) => ({ amount, source, low: low ?? amount, high: high ?? amount, samples: samples || 0 });
+    if (src.live && Number.isFinite(src.live.charge) && (!src.live.categoryId || String(src.live.categoryId) === cat)) {
+      return res(src.live.charge, 'live', null, null, 1);
+    }
+    const table = rateTable(src.log || [], src.config);
+    const row = table[cat];
+    const grams = Number(listing.declaredGrams) || 0;
+    if (row && grams > 0 && row[slabIndex(grams, src.config)]) {
+      const s = row[slabIndex(grams, src.config)];
+      return res(s.median, 'observed', s.min, s.max, s.count);
+    }
+    if (row) {
+      const all = Object.values(row);
+      const count = all.reduce((n, s) => n + s.count, 0);
+      const medians = all.map((s) => s.median);
+      return res(median(medians), 'category', Math.min(...all.map((s) => s.min)), Math.max(...all.map((s) => s.max)), count);
+    }
+    const info = src.categoryInfo && src.categoryInfo[cat];
+    if (info && Number.isFinite(Number(info.baseShipping))) return res(Number(info.baseShipping), 'base', null, null, 0);
+    const est = estimateCharge(grams || 1, cat, null, src.config);
+    return est.amount == null ? res(null, 'unknown', null, null, 0) : res(est.amount, 'model', null, null, 0);
+  }
+
+  const SOURCE_LABELS = {
+    live: "panel's own calculation",
+    observed: 'median of your logged charges for this category and weight',
+    category: 'your logged charges for this category (other weights)',
+    base: "category base shipping from the panel's form",
+    model: 'your fallback rate model',
+    unknown: 'no data yet',
+  };
+
   const api = {
     DEFAULT_CONFIG,
+    estimateForListing,
+    SOURCE_LABELS,
     volumetricGrams,
     chargeableGrams,
     slabIndex,

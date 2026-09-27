@@ -71,6 +71,9 @@
         if (need) warnings.push(`Below target profit; price ₹${need} would reach ₹${costs.targetProfit}`);
       }
     }
+    if (tp && mrp !== null && price !== null && price <= mrp && price + tp.shippingCharge > mrp) {
+      warnings.push(`Price + shipping (₹${price + tp.shippingCharge}) is above MRP (₹${mrp}); the panel flags this too`);
+    }
     if (tp) info.push(`Shipping ₹${tp.shippingCharge}, customer pays ₹${tp.customerPays}, settlement ₹${tp.settlement}`);
     return { errors, warnings, info };
   }

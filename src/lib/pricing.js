@@ -14,6 +14,8 @@
     gstOnFeesPct: 18, // GST charged on commission and fixed fee
     tcsPct: 0.5, // GST TCS on taxable value, recoverable against GST liability
     tdsPct: 0.1, // income-tax TDS (194-O), recoverable against income tax
+    // Sellers on a GST enrolment id (no GSTIN) are not charged TCS by the panel.
+    gstEnrolmentOnly: false,
     shippingBorneBySeller: false, // true if forward shipping is deducted from payout
     // The panel's own breakdown computes TCS/TDS on (price + shipping) net of
     // GST. Verified against a captured transfer-price response, see
@@ -57,7 +59,7 @@
     const feeGst = ((commission + fixedFee) * num(f.gstOnFeesPct)) / 100;
     const shippingDeduction = f.shippingBorneBySeller ? shippingCharge : 0;
     const taxBase = (price + (f.taxBaseIncludesShipping ? shippingCharge : 0)) / (1 + gstPct / 100);
-    const tcs = (taxBase * num(f.tcsPct)) / 100;
+    const tcs = f.gstEnrolmentOnly ? 0 : (taxBase * num(f.tcsPct)) / 100;
     const tds = (taxBase * num(f.tdsPct)) / 100;
 
     const platformDeductions = commission + fixedFee + feeGst + shippingDeduction;
@@ -105,6 +107,41 @@
   }
 
   /**
+   * A full quote: breakdown plus the warnings the panel itself raises.
+   * @param {object} input breakdown input plus optional mrp and targetProfit
+   */
+  function quote(input, fees) {
+    const b = breakdown(input, fees);
+    const mrp = num(input.mrp, NaN);
+    const warnings = [];
+    if (Number.isFinite(mrp) && mrp > 0) {
+      if (b.price > mrp) warnings.push('Meesho price is higher than MRP.');
+      // The panel flags this case too (price + shipping above MRP).
+      else if (b.customerPays > mrp) warnings.push(`Price + shipping (₹${b.customerPays}) is above MRP (₹${mrp}). Customers see a higher price than MRP.`);
+    }
+    if (b.profit < 0) warnings.push(`Loss of ₹${Math.abs(b.profit)} per order.`);
+    const out = Object.assign({}, b, { warnings, taxesShown: round2(b.tcs + b.tds + b.feeGst) });
+    if (input.targetProfit != null && input.targetProfit !== '') {
+      out.priceForTarget = priceForTarget(input.targetProfit, input, fees);
+    }
+    return out;
+  }
+
+  /** What-if table across prices, same shipping and costs. */
+  function priceLadder(input, fees, opts) {
+    const o = Object.assign({ steps: 5, step: 20 }, opts);
+    const base = Math.round(num(input.price));
+    const rows = [];
+    for (let i = -o.steps; i <= o.steps; i++) {
+      const price = base + i * o.step;
+      if (price < 1) continue;
+      const b = breakdown(Object.assign({}, input, { price }), fees);
+      rows.push({ price, customerPays: b.customerPays, settlement: b.settlement, profit: b.profit, marginPct: b.marginPct, current: i === 0 });
+    }
+    return rows;
+  }
+
+  /**
    * Normalise the panel's transfer-price response (observed shape:
    * {price, commission_fees, commission_percentage, gst_price, tcs, tds,
    *  transfer_price, shipping_charges, total_price}) into our field names.
@@ -124,7 +161,7 @@
     };
   }
 
-  const api = { DEFAULT_FEES, breakdown, priceForTarget, fromPanelTransferPrice, parseAmount: num };
+  const api = { DEFAULT_FEES, breakdown, quote, priceLadder, priceForTarget, fromPanelTransferPrice, parseAmount: num };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else (root.MSA = root.MSA || {}).pricing = api;
 })(globalThis);

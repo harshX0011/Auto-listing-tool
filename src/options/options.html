@@ -11,6 +11,7 @@
     <h1>Seller Listing Assistant</h1>
     <nav>
       <button data-tab="profiles" class="active">Profiles</button>
+      <button data-tab="calc">Shipping calculator</button>
       <button data-tab="queue">Queue</button>
       <button data-tab="shipping">Shipping log</button>
       <button data-tab="settings">Settings</button>
@@ -64,6 +65,38 @@
       </form>
     </section>
 
+    <section id="tab-calc" class="tab" hidden>
+      <form id="calc-form" autocomplete="off">
+        <p class="hint">Estimate shipping, what the customer pays, your bank settlement and profit before you list. Shipping comes from the panel's own figures you have seen (logged automatically), then the category's base shipping, then your fallback rates.</p>
+        <div class="grid">
+          <label>Start from profile <select name="profile"></select></label>
+          <label>Category (sub-sub-category id) <input name="category" list="known-categories" /></label>
+          <label>Net weight declared (g) <input name="weight" type="number" min="0" /></label>
+          <label>Meesho price (₹) <input name="price" type="number" min="1" step="1" /></label>
+          <label>MRP (₹) <input name="mrp" type="number" min="0" step="1" /></label>
+          <label>GST (%) <input name="gst" type="number" min="0" step="0.25" list="gst-rates" /></label>
+          <label>Cost price (₹) <input name="costPrice" type="number" min="0" step="0.01" /></label>
+          <label>Packaging cost (₹) <input name="packagingCost" type="number" min="0" step="0.01" /></label>
+          <label>Target profit (₹) <input name="targetProfit" type="number" step="1" /></label>
+          <label>Return rate (%) <input name="returnRate" type="number" min="0" max="100" step="1" /></label>
+          <label>Loss per returned order (₹) <input name="returnCost" type="number" min="0" step="1" /></label>
+          <label>Shipping override (₹, optional) <input name="shipOverride" type="number" min="0" step="1" /></label>
+        </div>
+        <h3>Packaging (optional)</h3>
+        <div class="grid">
+          <label>Packaging weight (g) <input name="packWeight" type="number" min="0" /></label>
+          <label>Length (cm) <input name="packL" type="number" min="0" step="0.1" /></label>
+          <label>Breadth (cm) <input name="packB" type="number" min="0" step="0.1" /></label>
+          <label>Height (cm) <input name="packH" type="number" min="0" step="0.1" /></label>
+        </div>
+        <datalist id="known-categories"></datalist>
+        <datalist id="gst-rates"><option value="0"></option><option value="3"></option><option value="5"></option><option value="12"></option><option value="18"></option><option value="28"></option><option value="40"></option></datalist>
+      </form>
+      <div id="calc-result" class="card"></div>
+      <h3>Price what-if</h3>
+      <div id="calc-ladder"></div>
+    </section>
+
     <section id="tab-queue" class="tab" hidden>
       <p class="hint">Queue several profiles, then use "Fill next in queue" on the panel. Each fill moves to the next item; you still submit every listing yourself.</p>
       <ol id="queue-list"></ol>
@@ -97,6 +130,7 @@
           <label>TDS (%) <input name="tdsPct" type="number" step="0.01" /></label>
           <label class="check"><input name="taxBaseIncludesShipping" type="checkbox" /> TCS/TDS base includes shipping</label>
           <label class="check"><input name="shippingBorneBySeller" type="checkbox" /> Shipping deducted from my payout</label>
+          <label class="check"><input name="gstEnrolmentOnly" type="checkbox" /> I sell with a GST enrolment id (no GSTIN): no TCS</label>
         </div>
         <h3>Shipping model</h3>
         <div class="grid">
