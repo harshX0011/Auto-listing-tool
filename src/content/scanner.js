@@ -43,7 +43,10 @@
       if (el.closest('[role=listbox], [role=menu]')) continue;
       const label = dom.getLabelText(el);
       const kind = dom.controlKind(el);
-      const field = fields.matchLabel(label);
+      const field =
+        fields.matchIdentifier(el.getAttribute('name')) ||
+        fields.matchIdentifier(el.id) ||
+        fields.matchLabel(label);
       const attr = fields.matchAttribute(label, attributeNames);
       let entry;
       // A profile attribute that matches the label exactly beats a weak generic match.

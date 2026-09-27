@@ -93,16 +93,19 @@
     const f = p.fields || {};
     const n = (v) => (v === undefined || v === null || v === '' ? null : Number(v));
 
-    for (const key of ['meeshoPrice', 'mrp', 'weight', 'inventory', 'wrongDefectiveReturnsPrice']) {
+    for (const key of ['meeshoPrice', 'mrp', 'weight', 'inventory', 'wdrpDiscount']) {
       const v = n(f[key]);
       if (v !== null && (!Number.isFinite(v) || v < 0)) errors.push(`${key} must be a non-negative number`);
     }
     const price = n(f.meeshoPrice);
     const mrp = n(f.mrp);
     if (price !== null && mrp !== null && price > mrp) errors.push('Selling price is higher than MRP');
-    const wd = n(f.wrongDefectiveReturnsPrice);
-    if (wd !== null && price !== null && wd > price) warnings.push('Wrong/defective returns price is above the selling price');
+    const wd = n(f.wdrpDiscount);
+    if (wd !== null && price !== null && wd >= price) errors.push('Wrong/defective return discount must be below the selling price');
     if (f.hsn && !/^\d{4}(\d{2}){0,2}$/.test(String(f.hsn))) errors.push('HSN code should be 4, 6 or 8 digits');
+    for (const key of ['manufacturerPincode', 'packerPincode']) {
+      if (f[key] && !/^[1-9]\d{5}$/.test(String(f[key]))) errors.push(`${key} should be a 6-digit Indian pincode`);
+    }
     const gst = n(f.gst);
     if (gst !== null && !COMMON_GST_RATES.includes(gst)) {
       warnings.push(`GST ${gst}% is not one of the common rates (${COMMON_GST_RATES.join(', ')}). Double-check it.`);

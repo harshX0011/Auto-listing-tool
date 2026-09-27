@@ -9,27 +9,39 @@
   'use strict';
 
   // Order matters only for documentation; matching is score based.
+  // Labels and identifiers observed in the panel's single-catalog form schema
+  // (see docs/REFERENCE_ANALYSIS.md). Identifiers are also matched against an
+  // input's name/id attributes when the panel exposes them.
   const FIELD_DEFS = [
-    { key: 'productName', type: 'text', synonyms: ['product name', 'name of the product'] },
-    { key: 'meeshoPrice', type: 'number', synonyms: ['meesho price', 'selling price', 'price'] },
+    { key: 'productName', label: 'Product Name', type: 'text', ids: ['product_name'], synonyms: ['product name'] },
+    { key: 'meeshoPrice', label: 'Meesho Price', type: 'number', ids: ['meesho_price'], synonyms: ['meesho price', 'selling price'] },
     {
-      key: 'wrongDefectiveReturnsPrice',
+      key: 'wdrpDiscount',
       type: 'number',
-      synonyms: ['wrong defective returns price', 'wrong or defective returns price', 'returns price'],
+      ids: ['wdrp_discount'],
+      synonyms: ['wrong defective return discount', 'wrong defective returns discount', 'wrong defective return discount ₹'],
     },
-    { key: 'mrp', type: 'number', synonyms: ['mrp', 'maximum retail price', 'product mrp'] },
-    { key: 'inventory', type: 'number', synonyms: ['inventory', 'stock', 'available quantity'] },
-    { key: 'weight', type: 'number', synonyms: ['product weight', 'weight in gm', 'weight gm', 'weight'] },
-    { key: 'skuId', type: 'text', synonyms: ['supplier product id', 'sku id', 'sku', 'style code'] },
-    { key: 'gst', type: 'select', synonyms: ['gst', 'gst rate', 'gst percentage'] },
-    { key: 'hsn', type: 'text', synonyms: ['hsn code', 'hsn'] },
-    { key: 'brand', type: 'text', synonyms: ['brand name', 'brand'] },
-    { key: 'countryOfOrigin', type: 'select', synonyms: ['country of origin'] },
-    { key: 'manufacturerDetails', type: 'textarea', synonyms: ['manufacturer details', 'manufacturer name and address'] },
-    { key: 'packerDetails', type: 'textarea', synonyms: ['packer details', 'packer name and address'] },
-    { key: 'importerDetails', type: 'textarea', synonyms: ['importer details', 'importer name and address'] },
-    { key: 'description', type: 'textarea', synonyms: ['product description', 'description'] },
-    { key: 'netQuantity', type: 'select', synonyms: ['net quantity', 'net qty'] },
+    { key: 'mrp', label: 'MRP', type: 'number', ids: ['product_mrp'], synonyms: ['mrp', 'maximum retail price'] },
+    { key: 'inventory', label: 'Inventory', type: 'number', ids: ['inventory'], synonyms: ['inventory', 'stock'] },
+    { key: 'weight', label: 'Net Weight (gms)', type: 'number', ids: ['product_weight_in_gms'], synonyms: ['net weight gms', 'net weight', 'product weight', 'weight'] },
+    { key: 'styleCode', label: 'Style Code / Product ID', type: 'text', ids: ['supplier_product_id'], synonyms: ['style code product id', 'style code', 'product id'] },
+    { key: 'skuId', label: 'SKU ID', type: 'text', ids: ['supplier_sku_id'], synonyms: ['sku id', 'sku'] },
+    { key: 'gst', label: 'GST (%)', type: 'select', ids: ['supplier_gst_percent'], synonyms: ['gst', 'gst rate'] },
+    { key: 'hsn', label: 'HSN Code', type: 'select', ids: ['hsn_code'], synonyms: ['hsn code', 'hsn'] },
+    { key: 'brand', label: 'Brand', type: 'select', ids: ['brand'], synonyms: ['brand', 'brand name'] },
+    { key: 'countryOfOrigin', label: 'Country of Origin', type: 'select', ids: ['country_of_origin'], synonyms: ['country of origin'] },
+    { key: 'manufacturerName', label: 'Manufacturer Name', type: 'text', ids: ['manufacturer_name'], synonyms: ['manufacturer name'] },
+    { key: 'manufacturerAddress', label: 'Manufacturer Address', type: 'text', ids: ['manufacturer_address'], synonyms: ['manufacturer address'] },
+    { key: 'manufacturerPincode', label: 'Manufacturer Pincode', type: 'number', ids: ['manufacturer_pincode'], synonyms: ['manufacturer pincode'] },
+    { key: 'packerName', label: 'Packer Name', type: 'text', ids: ['packer_name'], synonyms: ['packer name'] },
+    { key: 'packerAddress', label: 'Packer Address', type: 'text', ids: ['packer_address'], synonyms: ['packer address'] },
+    { key: 'packerPincode', label: 'Packer Pincode', type: 'number', ids: ['packer_pincode'], synonyms: ['packer pincode'] },
+    { key: 'importerName', label: 'Importer Name', type: 'text', ids: ['importer_name'], synonyms: ['importer name'] },
+    { key: 'importerAddress', label: 'Importer Address', type: 'text', ids: ['importer_address'], synonyms: ['importer address'] },
+    { key: 'importerPincode', label: 'Importer Pincode', type: 'text', ids: ['importer_pincode'], synonyms: ['importer pincode'] },
+    { key: 'description', label: 'Description', type: 'textarea', ids: ['comment'], synonyms: ['product description', 'description'] },
+    { key: 'netQuantity', label: 'Net Quantity (N)', type: 'select', ids: ['multipack'], synonyms: ['net quantity n', 'net quantity'] },
+    { key: 'modelName', label: 'Model Name', type: 'text', ids: ['model_name'], synonyms: ['model name'] },
   ];
 
   const FIELD_KEYS = FIELD_DEFS.map((d) => d.key);
@@ -84,11 +96,24 @@
     return best;
   }
 
+  /**
+   * Match an input's name/id attribute against known schema identifiers.
+   * Accepts composite names such as "0:0:meesho_price".
+   */
+  function matchIdentifier(attr) {
+    if (!attr) return null;
+    const parts = String(attr).toLowerCase().split(/[^a-z0-9_]+/);
+    for (const def of FIELD_DEFS) {
+      if (def.ids.some((id) => parts.includes(id))) return { key: def.key, score: 500 };
+    }
+    return null;
+  }
+
   function getFieldDef(key) {
     return FIELD_DEFS.find((d) => d.key === key) || null;
   }
 
-  const api = { FIELD_DEFS, FIELD_KEYS, normalizeLabel, scorePhrase, matchLabel, matchAttribute, getFieldDef };
+  const api = { FIELD_DEFS, FIELD_KEYS, normalizeLabel, scorePhrase, matchLabel, matchIdentifier, matchAttribute, getFieldDef };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else (root.MSA = root.MSA || {}).fields = api;
 })(globalThis);

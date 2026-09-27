@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Listing Assistant Settings</title>
+  <link rel="stylesheet" href="options.css" />
+</head>
+<body>
+  <header>
+    <h1>Seller Listing Assistant</h1>
+    <nav>
+      <button data-tab="profiles" class="active">Profiles</button>
+      <button data-tab="queue">Queue</button>
+      <button data-tab="shipping">Shipping log</button>
+      <button data-tab="settings">Settings</button>
+      <button data-tab="backup">Backup</button>
+    </nav>
+  </header>
+
+  <main>
+    <section id="tab-profiles" class="tab">
+      <aside>
+        <button id="new-profile" class="primary">New profile</button>
+        <ul id="profile-list"></ul>
+      </aside>
+      <form id="profile-form" autocomplete="off" hidden>
+        <div class="grid">
+          <label>Name <input name="name" required /></label>
+          <label>Inherits from <select name="extends"></select></label>
+          <label>Category (name or sub-sub-category id) <input name="category" /></label>
+        </div>
+        <h3>Listing fields</h3>
+        <p class="hint">Leave blank to keep the base profile's value or the form's own value. Text fields accept templates such as <code>{{Color}}</code>.</p>
+        <div id="field-inputs" class="grid"></div>
+        <h3>Category attributes</h3>
+        <p class="hint">One per line, as <code>Label = Value</code>, using the label shown in the panel (for example <code>Color = Black</code>).</p>
+        <textarea name="attributes" rows="6"></textarea>
+        <h3>Costs</h3>
+        <div class="grid">
+          <label>Cost price (₹) <input name="costPrice" type="number" step="0.01" min="0" /></label>
+          <label>Packaging cost (₹) <input name="packagingCost" type="number" step="0.01" min="0" /></label>
+          <label>Target profit per order (₹) <input name="targetProfit" type="number" step="0.01" /></label>
+        </div>
+        <h3>Packaging</h3>
+        <div class="grid">
+          <label>Packaging weight (g) <input name="packWeight" type="number" min="0" /></label>
+          <label>Length (cm) <input name="packL" type="number" step="0.1" min="0" /></label>
+          <label>Breadth (cm) <input name="packB" type="number" step="0.1" min="0" /></label>
+          <label>Height (cm) <input name="packH" type="number" step="0.1" min="0" /></label>
+        </div>
+        <div id="profile-insight" class="card"></div>
+        <div id="profile-validation"></div>
+        <div class="actions">
+          <button type="submit" class="primary">Save</button>
+          <button type="button" id="duplicate-profile">Duplicate</button>
+          <button type="button" id="queue-profile">Add to queue</button>
+          <button type="button" id="delete-profile" class="danger">Delete</button>
+        </div>
+      </form>
+    </section>
+
+    <section id="tab-queue" class="tab" hidden>
+      <p class="hint">Queue several profiles, then use "Fill next in queue" on the panel. Each fill moves to the next item; you still submit every listing yourself.</p>
+      <ol id="queue-list"></ol>
+      <div class="actions">
+        <button id="queue-reset">Restart from first</button>
+        <button id="queue-clear" class="danger">Clear queue</button>
+      </div>
+    </section>
+
+    <section id="tab-shipping" class="tab" hidden>
+      <p class="hint">Every time the panel calculates price details, the shipping charge it shows is saved here (locally). Use it to see what each category and weight slab really costs.</p>
+      <h3>Observed rates by category and slab</h3>
+      <div id="rate-table"></div>
+      <h3>Recent calculations</h3>
+      <div id="log-table"></div>
+      <div class="actions">
+        <button id="log-export">Export CSV</button>
+        <button id="log-clear" class="danger">Clear log</button>
+      </div>
+    </section>
+
+    <section id="tab-settings" class="tab" hidden>
+      <form id="settings-form">
+        <h3>Fees and taxes</h3>
+        <p class="hint">Defaults match the panel's own breakdown at the time of writing. Check them against your settlement statements.</p>
+        <div class="grid">
+          <label>Commission (%) <input name="commissionPct" type="number" step="0.01" /></label>
+          <label>Fixed fee per order (₹) <input name="fixedFeePerOrder" type="number" step="0.01" /></label>
+          <label>GST on fees (%) <input name="gstOnFeesPct" type="number" step="0.01" /></label>
+          <label>TCS (%) <input name="tcsPct" type="number" step="0.01" /></label>
+          <label>TDS (%) <input name="tdsPct" type="number" step="0.01" /></label>
+          <label class="check"><input name="taxBaseIncludesShipping" type="checkbox" /> TCS/TDS base includes shipping</label>
+          <label class="check"><input name="shippingBorneBySeller" type="checkbox" /> Shipping deducted from my payout</label>
+        </div>
+        <h3>Shipping model</h3>
+        <div class="grid">
+          <label>Weight slab size (g) <input name="slabSizeGrams" type="number" min="1" /></label>
+          <label>Volumetric divisor (cm³ per kg) <input name="volumetricDivisor" type="number" min="1" /></label>
+          <label>Fallback: first slab (₹) <input name="firstSlab" type="number" step="0.01" /></label>
+          <label>Fallback: each extra slab (₹) <input name="additionalSlab" type="number" step="0.01" /></label>
+        </div>
+        <h3>Behaviour</h3>
+        <div class="grid">
+          <label class="check"><input name="overwriteFilled" type="checkbox" /> Overwrite fields that already have a value</label>
+          <label class="check"><input name="autoLogShipping" type="checkbox" /> Save shipping charges to the log</label>
+        </div>
+        <h3>Advanced: page matching</h3>
+        <p class="hint">Only needed if the panel changes its layout. Map field keys to CSS selectors, for example <code>{"meeshoPrice": "input[name*=meesho_price]"}</code>.</p>
+        <textarea name="selectorOverrides" rows="4"></textarea>
+        <p class="hint">Fallback patterns (regular expressions, one per line) for reading the shipping charge from page text. The first capture group is the amount.</p>
+        <textarea name="shippingPatterns" rows="3"></textarea>
+        <div class="actions"><button type="submit" class="primary">Save settings</button></div>
+        <div id="settings-status"></div>
+      </form>
+    </section>
+
+    <section id="tab-backup" class="tab" hidden>
+      <p class="hint">Export profiles to move them to another browser or share them with your team.</p>
+      <div class="actions">
+        <button id="export-profiles" class="primary">Export profiles</button>
+        <label class="file">Import profiles <input id="import-profiles" type="file" accept="application/json,.json" /></label>
+      </div>
+      <div id="backup-status"></div>
+    </section>
+  </main>
+
+  <script src="../lib/fields.js"></script>
+  <script src="../lib/pricing.js"></script>
+  <script src="../lib/shipping.js"></script>
+  <script src="../lib/profiles.js"></script>
+  <script src="../lib/storage.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>

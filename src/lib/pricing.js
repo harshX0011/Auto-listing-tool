@@ -15,6 +15,10 @@
     tcsPct: 0.5, // GST TCS on taxable value, recoverable against GST liability
     tdsPct: 0.1, // income-tax TDS (194-O), recoverable against income tax
     shippingBorneBySeller: false, // true if forward shipping is deducted from payout
+    // The panel's own breakdown computes TCS/TDS on (price + shipping) net of
+    // GST. Verified against a captured transfer-price response, see
+    // docs/REFERENCE_ANALYSIS.md.
+    taxBaseIncludesShipping: true,
   };
 
   const round2 = (n) => Math.round(n * 100) / 100;
@@ -52,8 +56,9 @@
     const fixedFee = num(f.fixedFeePerOrder);
     const feeGst = ((commission + fixedFee) * num(f.gstOnFeesPct)) / 100;
     const shippingDeduction = f.shippingBorneBySeller ? shippingCharge : 0;
-    const tcs = (taxableValue * num(f.tcsPct)) / 100;
-    const tds = (taxableValue * num(f.tdsPct)) / 100;
+    const taxBase = (price + (f.taxBaseIncludesShipping ? shippingCharge : 0)) / (1 + gstPct / 100);
+    const tcs = (taxBase * num(f.tcsPct)) / 100;
+    const tds = (taxBase * num(f.tdsPct)) / 100;
 
     const platformDeductions = commission + fixedFee + feeGst + shippingDeduction;
     const settlement = price - platformDeductions - tcs - tds;
@@ -99,7 +104,27 @@
     return price;
   }
 
-  const api = { DEFAULT_FEES, breakdown, priceForTarget, parseAmount: num };
+  /**
+   * Normalise the panel's transfer-price response (observed shape:
+   * {price, commission_fees, commission_percentage, gst_price, tcs, tds,
+   *  transfer_price, shipping_charges, total_price}) into our field names.
+   */
+  function fromPanelTransferPrice(r) {
+    if (!r || typeof r !== 'object') return null;
+    return {
+      price: num(r.price),
+      commission: num(r.commission_fees),
+      commissionPct: num(r.commission_percentage),
+      feeGst: num(r.gst_price),
+      tcs: num(r.tcs),
+      tds: num(r.tds),
+      settlement: num(r.transfer_price),
+      shippingCharge: num(r.shipping_charges),
+      customerPays: num(r.total_price),
+    };
+  }
+
+  const api = { DEFAULT_FEES, breakdown, priceForTarget, fromPanelTransferPrice, parseAmount: num };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else (root.MSA = root.MSA || {}).pricing = api;
 })(globalThis);

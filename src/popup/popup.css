@@ -1,0 +1,8 @@
+body { width: 280px; margin: 0; padding: 12px; font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; color: #1d1d1f; background: #fff; }
+h1 { font-size: 15px; margin: 0 0 10px; color: #5b2a86; }
+label { display: block; font-size: 12px; color: #6b6b70; margin-bottom: 4px; }
+select, button { width: 100%; padding: 7px 8px; border-radius: 8px; border: 1px solid #ccc; font-size: 13px; background: #fff; margin-bottom: 8px; cursor: pointer; }
+button.primary { background: #5b2a86; border-color: #5b2a86; color: #fff; }
+button:disabled { opacity: .5; cursor: default; }
+.muted { color: #6b6b70; } .small { font-size: 11px; }
+.ok { color: #1b7f3b; } .warn { color: #8a5a00; }

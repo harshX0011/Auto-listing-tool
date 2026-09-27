@@ -1,0 +1,45 @@
+{
+  "manifest_version": 3,
+  "name": "Seller Listing Assistant",
+  "short_name": "Listing Assistant",
+  "version": "0.1.0",
+  "description": "Unofficial helper for Meesho suppliers: payout and shipping insight, listing autofill, reusable product profiles. Not affiliated with Meesho.",
+  "minimum_chrome_version": "111",
+  "permissions": ["storage"],
+  "host_permissions": ["https://supplier.meesho.com/*"],
+  "background": { "service_worker": "src/background/service-worker.js" },
+  "action": { "default_popup": "src/popup/popup.html", "default_title": "Seller Listing Assistant" },
+  "options_ui": { "page": "src/options/options.html", "open_in_tab": true },
+  "content_scripts": [
+    {
+      "matches": ["https://supplier.meesho.com/*"],
+      "js": ["src/content/page-observer.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://supplier.meesho.com/*"],
+      "js": [
+        "src/lib/fields.js",
+        "src/lib/pricing.js",
+        "src/lib/shipping.js",
+        "src/lib/profiles.js",
+        "src/lib/storage.js",
+        "src/content/dom.js",
+        "src/content/scanner.js",
+        "src/content/autofill.js",
+        "src/content/validator.js",
+        "src/content/shipping-watch.js",
+        "src/content/panel.js",
+        "src/content/main.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "commands": {
+    "fill-active-profile": {
+      "suggested_key": { "default": "Alt+Shift+F" },
+      "description": "Fill the listing form with the active profile"
+    }
+  }
+}

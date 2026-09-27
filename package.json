@@ -4,9 +4,8 @@
   "private": true,
   "description": "Unofficial Chrome extension for Meesho suppliers: shipping-cost insight, listing autofill, reusable product profiles.",
   "scripts": {
-    "test": "node --test test/",
-    "check": "node scripts/check.js",
-    "package": "node scripts/package.js"
+    "test": "node --test \"test/**/*.test.js\"",
+    "check": "node scripts/check.js"
   },
   "devDependencies": {
     "jsdom": "^26.1.0"
